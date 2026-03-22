@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+
+  # ─── PostgreSQL Database ───────────────────────────────────────────────────
+  db:
+    image: postgres:15
+    container_name: qa_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: qauser
+      POSTGRES_PASSWORD: qapassword
+      POSTGRES_DB: qaplatform
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qauser -d qaplatform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── FastAPI Backend ───────────────────────────────────────────────────────
+  backend:
+    build: ./Backend
+    container_name: qa_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://qauser:qapassword@db:5432/qaplatform
+      SECRET_KEY: super-secret-jwt-key-change-in-production
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./Backend:/app
+
+  # ─── React Frontend ────────────────────────────────────────────────────────
+  frontend:
+    image: node:20
+    container_name: qa_frontend
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontendd:/app
+    command: sh -c "npm install && npm run dev -- --host"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
